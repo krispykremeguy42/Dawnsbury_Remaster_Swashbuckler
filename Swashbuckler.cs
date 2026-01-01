@@ -662,38 +662,65 @@ public class RemasteredSwashbuckler
 
     /// <summary>
     /// Updates the Precise Strike QEffect to provide its damage bonus even without panache.
+    /// I'm having difficulty modifying the existing QEffect, so I'll just add a duplicate that only applies without panache.
     /// </summary>
     /// <param name="classSelectionFeat">The Swashbuckler Class Selection Feat</param>
     private static void PatchPreciseStrike(Feat classSelectionFeat)
     {
-        classSelectionFeat.WithPermanentQEffect(null, (QEffect qEffect) =>
+        /* classSelectionFeat.WithPermanentQEffect(null, (QEffect qEffect) =>
+           {
+               qEffect.YouAcquireQEffect = (QEffect self, QEffect effectToCheck) =>
+               {
+                   //if (effectToCheck.Name == "Precise Strike")
+                   if (effectToCheck.Id == AddSwash.PreciseStrikeEffectId)
+                   {
+                       throw new Exception("Patching Precise Strike");
+                       effectToCheck.Description = "You deal more damage when using agile or finesse weapons.";
+                       effectToCheck.YouDealDamageWithStrike = delegate (QEffect effectToCheck, CombatAction action, DiceFormula diceFormula, Creature defender)
+                       {
+                           bool flag = action.HasTrait(Trait.Agile) || action.HasTrait(Trait.Finesse);
+                           //bool flag2 = action.Owner.HasEffect(PanacheId);
+                           bool flag2 = true;
+                           bool flag3 = action.HasTrait(AddSwash.Finisher);
+                           bool flag4 = !action.HasTrait(Trait.Ranged) || (action.HasTrait(Trait.Thrown) && (action.Owner.PersistentCharacterSheet?.Calculated.AllFeats.Any(feat => feat.Name == "Flying Blade") ?? false) && (defender.DistanceTo(effectToCheck.Owner) <= action.Item!.WeaponProperties!.RangeIncrement));
+                           bool flag5 = defender.IsImmuneTo(Trait.PrecisionDamage);
+                           if (flag && flag3 && flag4 && (!flag5))
+                           {
+                               return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1d6", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString() + "d6", "Precise Strike"));
+                           }
+                           else if (flag && flag4 && (!flag5))
+                           {
+                               return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString(), "Precise Strike"));
+                           }
+                           return diceFormula;
+                       };
+                   }
+                   return effectToCheck;
+               };
+           });
+       //*/
+        classSelectionFeat.WithOnCreature(delegate (Creature creature)
         {
-            qEffect.YouAcquireQEffect = (QEffect self, QEffect effectToCheck) =>
+            creature.AddQEffect(new QEffect("Remastered Precise Strike", "You deal more damage when using agile or finesse weapons, even without panache.")
             {
-                if (effectToCheck.Name == "Precise Strike")
+                YouDealDamageWithStrike = delegate (QEffect effectToCheck, CombatAction action, DiceFormula diceFormula, Creature defender)
                 {
-                    effectToCheck.Description = "You deal more damage when using agile or finesse weapons.";
-                    effectToCheck.YouDealDamageWithStrike = delegate (QEffect effectToCheck, CombatAction action, DiceFormula diceFormula, Creature defender)
+                    bool flag = action.HasTrait(Trait.Agile) || action.HasTrait(Trait.Finesse);
+                    bool flag2 = !action.Owner.HasEffect(AddSwash.PanacheId);
+                    bool flag3 = action.HasTrait(AddSwash.Finisher);
+                    bool flag4 = !action.HasTrait(Trait.Ranged) || (action.HasTrait(Trait.Thrown) && (action.Owner.PersistentCharacterSheet?.Calculated.AllFeats.Any(feat => feat.Name == "Flying Blade") ?? false) && (defender.DistanceTo(effectToCheck.Owner) <= action.Item!.WeaponProperties!.RangeIncrement));
+                    bool flag5 = defender.IsImmuneTo(Trait.PrecisionDamage);
+                    if (flag && flag2 && flag3 && flag4 && (!flag5))
                     {
-                        bool flag = action.HasTrait(Trait.Agile) || action.HasTrait(Trait.Finesse);
-                        //bool flag2 = action.Owner.HasEffect(PanacheId);
-                        bool flag2 = true;
-                        bool flag3 = action.HasTrait(AddSwash.Finisher);
-                        bool flag4 = !action.HasTrait(Trait.Ranged) || (action.HasTrait(Trait.Thrown) && (action.Owner.PersistentCharacterSheet?.Calculated.AllFeats.Any(feat => feat.Name == "Flying Blade") ?? false) && (defender.DistanceTo(effectToCheck.Owner) <= action.Item!.WeaponProperties!.RangeIncrement));
-                        bool flag5 = defender.IsImmuneTo(Trait.PrecisionDamage);
-                        if (flag && flag3 && flag4 && (!flag5))
-                        {
-                            return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1d6", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString() + "d6", "Precise Strike"));
-                        }
-                        else if (flag && flag4 && (!flag5))
-                        {
-                            return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString(), "Precise Strike"));
-                        }
-                        return diceFormula;
-                    };
+                        return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1d6", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString() + "d6", "Precise Strike"));
+                    }
+                    else if (flag && flag2 && flag4 && (!flag5))
+                    {
+                        return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString(), "Precise Strike"));
+                    }
+                    return diceFormula;
                 }
-                return effectToCheck;
-            };
+            });
         });
     }
     
