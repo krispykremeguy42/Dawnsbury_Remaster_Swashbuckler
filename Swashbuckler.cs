@@ -707,14 +707,10 @@ public class RemasteredSwashbuckler
                 {
                     bool flag = action.HasTrait(Trait.Agile) || action.HasTrait(Trait.Finesse);
                     bool flag2 = !action.Owner.HasEffect(AddSwash.PanacheId);
-                    bool flag3 = action.HasTrait(AddSwash.Finisher);
+                    bool flag3 = !action.HasTrait(AddSwash.Finisher); // finisher already is handled by the legacy version
                     bool flag4 = !action.HasTrait(Trait.Ranged) || (action.HasTrait(Trait.Thrown) && (action.Owner.PersistentCharacterSheet?.Calculated.AllFeats.Any(feat => feat.Name == "Flying Blade") ?? false) && (defender.DistanceTo(effectToCheck.Owner) <= action.Item!.WeaponProperties!.RangeIncrement));
                     bool flag5 = defender.IsImmuneTo(Trait.PrecisionDamage);
                     if (flag && flag2 && flag3 && flag4 && (!flag5))
-                    {
-                        return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1d6", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString() + "d6", "Precise Strike"));
-                    }
-                    else if (flag && flag2 && flag4 && (!flag5))
                     {
                         return diceFormula.Add(!(effectToCheck.Owner.PersistentCharacterSheet.Class.FeatName == classSelectionFeat.FeatName) ? DiceFormula.FromText("1", "Precise Strike") : DiceFormula.FromText((((effectToCheck.Owner.Level - 1) / 4) + 2).ToString(), "Precise Strike"));
                     }
