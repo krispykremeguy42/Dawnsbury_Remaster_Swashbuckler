@@ -35,10 +35,30 @@ public class AddMulticlassSwash
         }
     }
 
-    public static Feat MulticlassSwashDedication = ArchetypeFeats.CreateMulticlassDedication(AddSwash.SwashTrait, "", "Choose a swashbuckler style. You gain the panache class feature, and can gain panache in all the ways a swashbuckler of your style can. You become trained in Acrobatics or the skill associated with your style. You also become trained in swashbuckler class DC. You don't gain any other effects of your chosen style.", GetSwashArchetypeSubclasses().ToList()).WithDemandsAbility14(Ability.Dexterity).WithDemandsAbility14(Ability.Charisma)
+    public static Feat MulticlassSwashDedication = ArchetypeFeats.CreateMulticlassDedication(AddSwash.SwashTrait, "", "Choose a swashbuckler style. You gain the panache and the stylish combatant class feature, and can gain panache in all the ways a swashbuckler of your style can. You become trained in Acrobatics or the skill associated with your style. You also become trained in swashbuckler class DC. You don't gain any other effects of your chosen style.", GetSwashArchetypeSubclasses().ToList()).WithDemandsAbility14(Ability.Dexterity).WithDemandsAbility14(Ability.Charisma)
         .WithOnCreature(delegate (Creature swash)
         {
             swash.AddQEffect(AddSwash.PanacheGranter());
+            // Add stylish combatant. It's nearly the same as the main class version, except it doesn't increase to +2 at level 9.
+            swash.AddQEffect(new QEffect("Stylish Combatant", "You have +1 circumstance bonus to bravado skill checks.")
+            {
+                BonusToSkillChecks = delegate (Skill skill, CombatAction action, Creature target)
+                {
+                    AddSwash.SwashbucklerStyle style = (AddSwash.SwashbucklerStyle)swash.PersistentCharacterSheet.Calculated.AllFeats.Find(feat => feat.HasTrait(AddSwash.SwashStyle));
+                    if (style == null) return null; // no subclass selected yet
+                    int bonus_val = 1;
+                    bool dummyflag = ModManager.TryParse("Disarming Flair", out FeatName DisarmingFlair);
+                    if (action.ActionId == ActionId.TumbleThrough || style.PanacheTriggers.Contains(action.ActionId))
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else if (swash.HasFeat(DisarmingFlair) && action.ActionId == ActionId.Disarm)
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else return null;
+                }
+            });
         });
 
     public static Feat FinishingPrecision = new TrueFeat(ModManager.RegisterFeatName("FinishingPrecision", "Finishing Precision"), 4, "You've learned how to land daring blows when you have panache.", "You gain the precise strike class feature, but you only deal 1 additional damage on a hit and 1d6 additional damage on a finisher. This damage doesn't increase as you gain levels. In addition, you gain the Basic Finisher action.", Array.Empty<Trait>(), null)
