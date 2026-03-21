@@ -653,34 +653,7 @@ public class RemasteredSwashbuckler
                     {
                         return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
                     }
-                    else if (creature.HasFeat(DisarmingFlair) && action.ActionId == ActionId.Disarm)
-                    {
-                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
-                    }
-                    else return null;
-                }
-            });
-        });
-    }
-
-    /// <summary>
-    /// Adds the Stylish Combatant QEffect to multiclassed Swashbucklers. The only difference is that its bonus doesn't increase at level 9.
-    /// </summary>
-    /// <param name="classSelectionFeat">The Swashbuckler Class Selection Feat</param>
-    private static void AddStylishCombatantMulticlass(Feat classSelectionFeat)
-    {
-        Feat feat;
-        bool dummyflag = ModManager.TryParse("Disarming Flair", out FeatName DisarmingFlair);
-        classSelectionFeat.WithOnCreature(delegate (Creature creature)
-        {
-            creature.AddQEffect(new QEffect("Stylish Combatant", "You have +1 circumstance bonus to bravado skill checks.")
-            {
-                BonusToSkillChecks = delegate (Skill skill, CombatAction action, Creature target)
-                {
-                    AddSwash.SwashbucklerStyle style = (AddSwash.SwashbucklerStyle)creature.PersistentCharacterSheet.Calculated.AllFeats.Find(feat => feat.HasTrait(AddSwash.SwashStyle));
-                    if (style == null) return null; // no subclass selected yet
-                    int bonus_val = 1;
-                    if (action.ActionId == ActionId.TumbleThrough || style.PanacheTriggers.Contains(action.ActionId))
+                    else if (action.HasTrait(RemasteredSwashbucklerTraits.BravadoTrait)) // note: should only apply to skill actions. Currently, only skill actions have the actual Bravado trait (although opportune riposte should).
                     {
                         return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
                     }

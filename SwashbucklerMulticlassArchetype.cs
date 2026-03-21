@@ -16,8 +16,9 @@ using Dawnsbury.Core.Mechanics.Treasure;
 using Dawnsbury.Core.CombatActions;
 using Dawnsbury.Display.Illustrations;
 using Dawnsbury.Core.Mechanics.Rules;
+using Dawnsbury.Mods.RemasteredSwashbuckler.RegisteredComponents;
 
-namespace Dawnsbury.Mods.Phoenix;
+namespace Dawnsbury.Mods.RemasteredSwashbuckler;
 
 public class AddMulticlassSwash
 {
@@ -49,6 +50,10 @@ public class AddMulticlassSwash
                     int bonus_val = 1;
                     bool dummyflag = ModManager.TryParse("Disarming Flair", out FeatName DisarmingFlair);
                     if (action.ActionId == ActionId.TumbleThrough || style.PanacheTriggers.Contains(action.ActionId))
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else if (action.HasTrait(RemasteredSwashbucklerTraits.BravadoTrait)) // note: should only apply to skill actions. Currently, only skill actions have the actual Bravado trait (although opportune riposte should).
                     {
                         return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
                     }
