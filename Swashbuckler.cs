@@ -410,6 +410,7 @@ public class RemasteredSwashbuckler
             // Update Precise Strike to apply without panache.
             PatchPreciseStrike(classSelectionFeat);
            
+            /*
             // Update Opportune Riposte to have the bravado trait effect.
             // I'm having difficulty removing the old feat and effect, so for now, just add a silent duplicate.
             feat.WithOnSheet(delegate (CalculatedCharacterSheetValues sheet)
@@ -419,11 +420,21 @@ public class RemasteredSwashbuckler
                     values.AddFeat(OpportuneRiposte!, null);
                 });
             });
+            //*/
             
             // Add the ability to gain panache on a failure.
             feat.WithOnCreature(delegate (Creature creature)
             {
                 creature.AddQEffect(PanacheGranterFailure());
+            });
+            
+            // Patch Opportune Riposte.
+            feat.WithOnCreature(delegate (Creature creature)
+            {
+                if (creature.Level >= 3)
+                {
+                    creature.AddQEffect(PatchOpportuneRiposte());
+                }
             });
             
             // Patch One for All effect
@@ -499,9 +510,9 @@ public class RemasteredSwashbuckler
         dummyflag = ModManager.TryParse("SwashbucklersRiposte", out FeatName LegacySwashbucklersRiposte);
         if (feat.FeatName == LegacySwashbucklersRiposte)
         {
-            feat.WithOnSheet(delegate (CalculatedCharacterSheetValues sheet)
+            feat.WithOnCreature(delegate (Creature creature)
             {
-                sheet.AddFeat(OpportuneRiposte!, null);
+                creature.AddQEffect(PatchOpportuneRiposte());
             });
         }
         
@@ -737,68 +748,36 @@ public class RemasteredSwashbuckler
         feat.RulesText = "When you make a Strike with a melee agile or finesse weapon or an agile or finesse unarmed strike, you deal 2 extra damage. This damage is 2d6 instead if the Strike was part of a finisher.";
     }
 
-    // I'm having difficulty modifying or removing the legacy version of the feat. Since the text is essentially the same and the legacy one was broken, just add the effect and make it invisible.
-    //public static Feat OpportuneRiposte = new Feat(ModManager.RegisterFeatName("OpportuneRiposteRemaster", "Opportune Riposte {icon:Reaction}"), "You take advantage of an opening from your foe's fumbled attack.", "When an enemy critically fails its Strike against you, you can use your reaction to make a melee Strike against that enemy.", new List<Trait>(), null)
-    public static Feat OpportuneRiposte = new Feat(ModManager.RegisterFeatName("OpportuneRiposteRemaster", "Opportune Riposte (remaster)"), "You take advantage of an opening from your foe's fumbled attack.", "When you use Opportune Riposte, it has the bravado trait.", new List<Trait>(), null)
-    // .WithPermanentQEffect("When an enemy critically fails a Strike against you, you may Strike it using a reaction.", delegate (QEffect qf)
-    .WithPermanentQEffect(null, delegate (QEffect qf)
+
+    /// <summary>
+    /// Patches the Opportune Riposte class feature from the legacy version to give it the bravado trait. It won't benefit from Stylish Combatant, but it will provide panache on a success (indefinitely) and failure (until the end of the next turn).
+    /// </summary>
+    /// <param name="classSelectionFeat">The Swashbuckler Class Selection Feat</param>
+    public static QEffect PatchOpportuneRiposte()
     {
-        qf.AfterYouAreTargeted = async delegate (QEffect qf2, CombatAction action)
+        QEffect remasterOpportuneRiposte = new QEffect("Opportune Riposte (remaster)", "When you use Opportune Riposte, it has the bravado trait.")
         {
-            if (action.HasTrait(Trait.Attack) && action.CheckResult == CheckResult.CriticalFailure && qf.Owner.Actions.CanTakeReaction() && !qf.Owner.Actions.IsReactionUsedUp)
+            AfterYouTakeAction = async (qf, action) =>
             {
-                Creature enemy2 = action.Owner;
-                Item weapon = qf.Owner.PrimaryWeapon;
-                if (weapon != null)
+                if (action.HasTrait(AddSwash.OpportuneRiposteTrait))
                 {
-                    CombatAction riposte = qf.Owner.CreateStrike(weapon, 0).WithActionCost(-2);
-                    CombatAction disarm2 = CombatManeuverPossibilities.CreateDisarmAction(qf.Owner, weapon).WithActionCost(-2);
-                    disarm2.Traits.Add(Trait.AttackDoesNotIncreaseMultipleAttackPenalty);
-                    CheckResult result = CheckResult.CriticalFailure;
-                    if ((bool)riposte.CanBeginToUse(qf.Owner))
+                    if (!qf.Owner.HasEffect(AddSwash.PanacheId))
                     {
-                        if ((qf.Owner.HasFreeHand || qf.Owner.WieldsItem(Trait.Disarm)) && enemy2.HeldItems.Any((Item hi) => !hi.HasTrait(Trait.Grapplee)))
+                        if (action.CheckResult == CheckResult.Success || action.CheckResult == CheckResult.CriticalSuccess)
                         {
-                            switch ((await qf.Owner.AskForChoiceAmongButtons(new ModdedIllustration("PhoenixAssets/panache.PNG"), enemy2.Name + " has critically failed an attack against you. What do you wish to do?", "Disarm", "Strike", "Do not react")).Index)
-                            {
-                                case 0:
-                                    await qf.Owner.Battle.GameLoop.FullCast(disarm2);
-                                    result = disarm2.CheckResult;
-                                    qf.Owner.Actions.UseUpReaction();
-                                    break;
-                                case 1:
-                                    result = await qf.Owner.MakeStrike(enemy2, weapon, 0);
-                                    qf.Owner.Actions.UseUpReaction();
-                                    break;
-                            }
-                            if (result >= CheckResult.Success)
-                            {
-                                qf.Owner.AddQEffect(CreatePanache());
-                            }
-                            else if (result == CheckResult.Failure)
-                            {
-                                qf.Owner.AddQEffect(CreatePanache(ExpirationCondition.ExpiresAtEndOfYourTurn));
-                            }
+                            qf.Owner.AddQEffect(CreatePanache(ExpirationCondition.Never));
                         }
-                        else if (await qf.Owner.Battle.AskToUseReaction(qf.Owner, enemy2.Name + " has critically failed an attack against you. Would you like to use your reaction to riposte?"))
+                        else if (action.CheckResult == CheckResult.Failure)
                         {
-                            result = await qf.Owner.MakeStrike(enemy2, weapon, 0);
-                            qf.Owner.Actions.UseUpReaction();
-                            if (result >= CheckResult.Success)
-                            {
-                                qf.Owner.AddQEffect(CreatePanache());
-                            }
-                            else if (result == CheckResult.Failure)
-                            {
-                                qf.Owner.AddQEffect(CreatePanache(ExpirationCondition.ExpiresAtEndOfYourTurn));
-                            }
+                            qf.Owner.AddQEffect(CreatePanache(ExpirationCondition.ExpiresAtEndOfYourTurn));
                         }
                     }
                 }
             }
         };
-    });
-
+        return remasterOpportuneRiposte;
+    }
+    
     /// <summary>
     /// This adds the QEffect to generate panache until the end of your turn on a failed bravado check. This QEffect is bypassed for most actions granted by Swashbuckler feats, but it is used to add the bravado trait to Tumble Through and other existing actions.
     /// Note that the legacy Swashbuckler PanacheGranter() already handles this for successes and critical successes.
