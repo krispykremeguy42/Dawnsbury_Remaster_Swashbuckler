@@ -371,9 +371,13 @@ public class RemasteredSwashbuckler
         if (feat.FeatName == LegacySwashbuckler && feat is ClassSelectionFeat classSelectionFeat)
         {
             // Add the Add Panache action.
+            // Also add skill feats at levels 3, 7, and 15. These should be restricted skill feats, buuut that takes more effort.
             feat.WithOnSheet(delegate (CalculatedCharacterSheetValues sheet)
             {
                 sheet.AddFeat(AddPanache!, null);
+                sheet.AddSkillFeatOption(3);
+                sheet.AddSkillFeatOption(7);
+                sheet.AddSkillFeatOption(15);
             });
             
             // Update class description.
@@ -410,18 +414,6 @@ public class RemasteredSwashbuckler
             // Update Precise Strike to apply without panache.
             PatchPreciseStrike(classSelectionFeat);
            
-            /*
-            // Update Opportune Riposte to have the bravado trait effect.
-            // I'm having difficulty removing the old feat and effect, so for now, just add a silent duplicate.
-            feat.WithOnSheet(delegate (CalculatedCharacterSheetValues sheet)
-            {
-                sheet.AddAtLevel(3, delegate (CalculatedCharacterSheetValues values)
-                {
-                    values.AddFeat(OpportuneRiposte!, null);
-                });
-            });
-            //*/
-            
             // Add the ability to gain panache on a failure.
             feat.WithOnCreature(delegate (Creature creature)
             {
