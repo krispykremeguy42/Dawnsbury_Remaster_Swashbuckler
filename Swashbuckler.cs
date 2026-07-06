@@ -498,6 +498,80 @@ public class RemasteredSwashbuckler
             feat.Traits.Add(AddSwash.SwashTrait);
         }
 
+        dummyflag = ModManager.TryParse(AddSwash.SwashTrait.ToStringOrTechnical() + "Dedication", out FeatName LegacySwashDedication);
+        
+        // Make similar changes for multiclass characters.
+        if (feat.FeatName == LegacySwashDedication)
+        {
+            // Add the Add Panache action for the same reasons as the normal class.
+            feat.WithOnSheet(delegate (CalculatedCharacterSheetValues sheet)
+            {
+                sheet.AddFeat(AddPanache!, null);
+            });
+            AddMCStylishCombatant(feat);
+            
+            // Add the ability to gain panache on a failure.
+            feat.WithOnCreature(delegate (Creature creature)
+            {
+                creature.AddQEffect(PanacheGranterFailure());
+            });
+            
+            // Patch One for All effect
+            PatchOneForAllAid(feat);
+            
+            // Fix bug in legacy Swashbuckler dedication: add list of skill actions from each style to the Panache Granter.
+            // Since I don't plan on monitoring the legacy mod to see if it's fixed, check to see if it already has been fixed.
+            feat.WithOnCreature(delegate (Creature swash)
+            {
+                QEffect panacheGranter = swash.QEffects.First((QEffect fct) => fct.Key == "PanacheGranter");
+                List<ActionId> list = (List<ActionId>)panacheGranter.Tag;
+    
+                AddSwash.SwashbucklerStyle style = (AddSwash.SwashbucklerStyle)swash.PersistentCharacterSheet.Calculated.AllFeats.Find(feat => feat.HasTrait(AddSwash.SwashStyle));
+                switch (style.Name)
+                {
+                    case "Battledancer":
+                        if (!list.Contains(AddSwash.FascinatingPerformanceActionId))
+                        {
+                            list.Add(AddSwash.FascinatingPerformanceActionId);
+                            panacheGranter.Description += ", Fascinating Performance";
+                        }
+                        break;
+                    case "Braggart":
+                        if(!list.Contains(ActionId.Demoralize))
+                        {
+                            list.Add(ActionId.Demoralize);
+                            panacheGranter.Description += ", Demoralize";
+                        }
+                        break;                        
+                    case "Fencer":
+                        if(!list.Contains(ActionId.Feint))
+                        {
+                            list.Add(ActionId.Feint);
+                            list.Add(ActionId.CreateADiversion);
+                            panacheGranter.Description += ", Feint";
+                            panacheGranter.Description += ", Create a Diversion";
+                        }
+                        break;
+                    case "Gymnast":
+                        if(!list.Contains(ActionId.Grapple))
+                        {
+                            list.Add(ActionId.Grapple);
+                            list.Add(ActionId.Shove);
+                            list.Add(ActionId.Trip);
+                            panacheGranter.Description += ", Grapple, Shove, Trip";
+                        }
+                        break;                        
+                    case "Wit":
+                        if(!list.Contains(ActionId.BonMot))
+                        {
+                            list.Add(ActionId.BonMot);
+                            panacheGranter.Description += ", Bon Mot";
+                        }
+                        break;                        
+                }                    
+            });
+        }
+        
         // Patch the Opportune Riposte reaction for multiclass characters.
         dummyflag = ModManager.TryParse("SwashbucklersRiposte", out FeatName LegacySwashbucklersRiposte);
         if (feat.FeatName == LegacySwashbucklersRiposte)
@@ -653,6 +727,41 @@ public class RemasteredSwashbuckler
                     int bonus_val = 1;
                     if (creature.Level >= 9)
                         bonus_val = 2;
+                    if (action.ActionId == ActionId.TumbleThrough || style.PanacheTriggers.Contains(action.ActionId))
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else if (action.HasTrait(RemasteredSwashbucklerTraits.BravadoTrait)) // note: should only apply to skill actions. Currently, only skill actions have the actual Bravado trait (although opportune riposte should).
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else if (creature.HasFeat(DisarmingFlair) && action.ActionId == ActionId.Disarm)
+                    {
+                        return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
+                    }
+                    else return null;
+                }
+            });
+        });
+    }
+
+    /// <summary>
+    /// Adds the Stylish Combatant QEffect to multiclass Swashbucklers.
+    /// </summary>
+    /// <param name="dedicationFeat">The Swashbuckler Dedication Feat</param>
+    private static void AddMCStylishCombatant(Feat dedicationFeat)
+    {
+        Feat feat;
+        bool dummyflag = ModManager.TryParse("Disarming Flair", out FeatName DisarmingFlair);
+        dedicationFeat.WithOnCreature(delegate (Creature creature)
+        {
+            creature.AddQEffect(new QEffect("Stylish Combatant", "You have +1 circumstance bonus to bravado skill checks.")
+            {
+                BonusToSkillChecks = delegate (Skill skill, CombatAction action, Creature target)
+                {
+                    AddSwash.SwashbucklerStyle style = (AddSwash.SwashbucklerStyle)creature.PersistentCharacterSheet.Calculated.AllFeats.Find(feat => feat.HasTrait(AddSwash.SwashStyle));
+                    if (style == null) return null; // no subclass selected yet
+                    int bonus_val = 1;
                     if (action.ActionId == ActionId.TumbleThrough || style.PanacheTriggers.Contains(action.ActionId))
                     {
                         return new Bonus(bonus_val, BonusType.Circumstance, "Stylish Combatant");
