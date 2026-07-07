@@ -17,5 +17,6 @@ namespace Dawnsbury.Mods.RemasteredSwashbuckler.RegisteredComponents
         public static readonly FeatName LeadingDance = ModManager.RegisterFeatName("LeadingDanceRemaster", "Leading Dance {icon:Action}");
         public static readonly FeatName FlashyDodge = ModManager.RegisterFeatName("Flashy Dodge", "Flashy Dodge {icon:Reaction}");
         public static readonly FeatName FlashyRoll = ModManager.RegisterFeatName("Flashy Roll", "Flashy Roll");
+        public static readonly FeatName RemasterSwashTumbleBehind = ModManager.RegisterFeatName("RemasterSwashTumbleBehind", "Tumble Behind");
     }
 }

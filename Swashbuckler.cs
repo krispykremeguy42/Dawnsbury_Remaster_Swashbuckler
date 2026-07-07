@@ -270,7 +270,6 @@ public class RemasteredSwashbuckler
         })
         .WithPrerequisite(FeatName.Performance, "Must be trained in Performance.");
         
-        
         // Flashy Dodge
         yield return new TrueFeat(RemasteredSwashbucklerFeatNames.FlashyDodge, 1, null, "You deftly dodge out of the way, gaining a +2 circumstance bonus to AC against the triggering attack. If the Strike misses, you gain panache until the end of your next turn.", new Trait[] { AddSwash.SwashTrait }, null)
         .WithPermanentQEffect("You gain a +2 bonus to AC as a reaction", delegate (QEffect qf)
@@ -357,7 +356,8 @@ public class RemasteredSwashbuckler
             };
         }).WithPrerequisite((CalculatedCharacterSheetValues sheet) => sheet.HasFeat(RemasteredSwashbucklerFeatNames.FlashyDodge), "You must have Flashy Dodge.");
         
-        
+        // Tumble Behind (level 2 Swashbuckler version)
+        yield return CommonFeatTemplates.CreateDuplicateFeatForDifferentClass(FeatName.TumbleBehind, RemasteredSwashbucklerFeatNames.RemasterSwashTumbleBehind, 2, AddSwash.SwashTrait);
     }
 
     /// <summary>
@@ -492,12 +492,6 @@ public class RemasteredSwashbuckler
             feat.Traits.Remove(AddSwash.SwashTrait);
         }
         
-        // Add the Swash trait to Tumble Behind
-        if (feat.FeatName == FeatName.TumbleBehind)
-        {
-            feat.Traits.Add(AddSwash.SwashTrait);
-        }
-
         dummyflag = ModManager.TryParse(AddSwash.SwashTrait.ToStringOrTechnical() + "Dedication", out FeatName LegacySwashDedication);
         
         // Make similar changes for multiclass characters.
