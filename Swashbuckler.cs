@@ -28,6 +28,10 @@ using System.Linq;
 using System.Reflection.Emit;
 using Dawnsbury.Mods.Phoenix;
 using Dawnsbury.Mods.RemasteredSwashbuckler.RegisteredComponents;
+using System.Runtime.InteropServices;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+using System.Threading.Tasks;
 
 namespace Dawnsbury.Mods.RemasteredSwashbuckler;
 
@@ -36,7 +40,6 @@ namespace Dawnsbury.Mods.RemasteredSwashbuckler;
 /// </summary>
 public class RemasteredSwashbuckler
 {
-
     /// <summary>
     /// The Flashy Dodge persistent QEffect ID
     /// </summary>
@@ -358,6 +361,232 @@ public class RemasteredSwashbuckler
         
         // Tumble Behind (level 2 Swashbuckler version)
         yield return CommonFeatTemplates.CreateDuplicateFeatForDifferentClass(FeatName.TumbleBehind, RemasteredSwashbucklerFeatNames.RemasterSwashTumbleBehind, 2, AddSwash.SwashTrait);
+
+        // Dastardly Dash
+        yield return new TrueFeat(
+            RemasteredSwashbucklerFeatNames.DastardlyDash,
+            4,
+            "You dash past an opponent, confounding them with underhanded tactics.",
+            "Stride up to half your speed. You can attempt a Trip or a Dirty Trick (if you have that action) against one opponent you pass within range of at any point during your movement.",
+            new Trait[] {Trait.Flourish, AddSwash.SwashTrait}
+        )
+        .WithPermanentQEffect(null, delegate (QEffect qf)
+        {
+            qf.ProvideMainAction = delegate (QEffect qf2)
+            {
+                return new ActionPossibility(CreateDastardlyDashCombatAction(qf2.Owner), PossibilitySize.Half);
+            };
+        });
+    }
+
+    /// <summary>
+    /// Create the Dastardly Dash CombatAction. Note that this assumes a free hand is being used to perform dirty tricks
+    /// and this method will need to be revisited if items with a Dirty Trick trait become popular
+    /// </summary>
+    /// <param name="user">The creature performing the Dastardly Dash</param>
+    /// <returns></returns>
+    private static CombatAction CreateDastardlyDashCombatAction(Creature user)
+    {
+        var performingDastardlyDashEffect = new QEffect(
+            "Began Dastardly Dash",
+            "You can attempt to Trip or perform a Dirty Trick on one target during this dash.",
+            ExpirationCondition.Never,
+            user,
+            IllustrationName.FleetStep)
+            {
+                Tag = (Tile?) null,
+                StateCheckWithVisibleChanges = async delegate (QEffect qf)
+                {
+                    // Ensure the state check only runs once per tile
+                    var currentTile =  user.Space.TopLeftTile;
+                    if (currentTile == qf.Tag)
+                    {
+                        return;
+                    }
+                    qf.Tag = currentTile;
+
+                    var eligibleTargets = user.Battle.AllCreatures.Where(cr =>
+                        cr.EnemyOf(user) &&
+                        (CanDTAsPartOfDash(user, cr) || CanTripAsPartOfDash(user, cr)));
+                    
+                    if (!eligibleTargets.Any())
+                    {
+                        return;
+                    }
+
+                    Creature? target = await user.Battle.AskToChooseACreature(
+                        user, 
+                        eligibleTargets, 
+                        IllustrationName.FleetStep,
+                        "You can attack one of these creatures at this point in your movement...",
+                        "Target with Trip/Dirty Trick?",
+                        "Pass");
+                    
+                    if (target is null)
+                    {
+                        return;
+                    }
+
+                    if (CanDTAsPartOfDash(user, target))
+                    {
+                        bool choice = await target.Battle.AskForConfirmation(
+                            user,
+                            IllustrationName.Clumsy,
+                            $"Attempt a dirty trick on {target.Name}?",
+                            "Yes", "No"
+                        );
+
+                        if (choice)
+                        {
+                            var dirtyTrickAction = Other.CreateDirtyTrickCombatAction(user, user.UnarmedStrike).WithActionCost(0);
+                            dirtyTrickAction.Target = Target.Self();
+                            await user.Battle.GameLoop.FullCast(dirtyTrickAction, ChosenTargets.CreateSingleTarget(target));
+                            qf.ExpiresAt = ExpirationCondition.Immediately;
+                            return;
+                        }
+                    }
+
+                    if (CanTripAsPartOfDash(user, target))
+                    {
+                        bool choice = await target.Battle.AskForConfirmation(
+                            user,
+                            IllustrationName.Trip,
+                            $"Attempt to trip {target.Name}?",
+                            "Yes", "No"
+                        );
+
+                        if (choice)
+                        {
+                            var tripAction = CombatManeuverPossibilities.CreateTripAction(user,
+                                user.MeleeWeapons.FirstOrDefault(delegate (Item item) { return item.HasTrait(Trait.Trip); }) ?? user.UnarmedStrike)
+                                .WithActionCost(0);
+                            tripAction.Target = Target.Self();
+                            await user.Battle.GameLoop.FullCast(tripAction, ChosenTargets.CreateSingleTarget(target));
+                            qf.ExpiresAt = ExpirationCondition.Immediately;
+                            return;
+                        }
+                    }
+                }
+            };
+
+        return new CombatAction(
+            user,
+            IllustrationName.FleetStep,
+            "Dastardly Dash",
+            new Trait[] { Trait.Flourish, AddSwash.SwashTrait },
+            "Stride up to half your Speed, attempting a Trip or Dirty Trick along the way.",
+            Target.Self().WithAdditionalRestriction(delegate (Creature user)
+            {
+                if (!user.WouldBeAbleToStride())
+                {
+                    return "You are currently unable to Stride.";
+                }
+                
+                var usersFinisherExhaustion = user.QEffects.FirstOrDefault(delegate (QEffect qe)
+                {
+                    return qe.Name.Equals("Used Finisher");
+                });
+
+                return usersFinisherExhaustion is null ? null : "You performed a finisher this turn, so Dastardly Dash has no benefit over Striding.";
+            })
+        )
+        .WithActionCost(1)
+        .WithSoundEffect(SfxName.Footsteps)
+        .WithEffectOnSelf(async delegate(CombatAction action, Creature user)
+        {   
+            user.AddQEffect(performingDastardlyDashEffect);
+            var strideExecuted = await user.StrideAsync(
+                "Dash past a target to prank them, or right-click to cancel.",
+                false,false,null,
+                true,false,true);
+            if (!strideExecuted)
+            {
+                action.RevertRequested = true;
+            }
+            performingDastardlyDashEffect.ExpiresAt = ExpirationCondition.Immediately;
+        });
+    }
+
+    /// <summary>
+    /// Get whether user can attempt to Trip target as part of a use of Dastardly Dash.
+    /// Assumes that this is called by the Dastardly Dash CombatAction so target will be an enemy of user.
+    /// Note that you can Trip any opponent you are within "range" of so if ranged trip attacks
+    /// are added to the game, a case for that should be added.
+    /// </summary>
+    private static Usability CanTripAsPartOfDash(Creature user, Creature target)
+    {
+        // Can't trip a target who is already prone
+        if (target.HasEffect(QEffectId.Prone))
+        {
+            return Usability.NotUsableOnThisCreature($"{target.Name} is already prone.");
+        }
+
+        if (target.HasEffect(QEffect.ImmunityToCondition(QEffectId.Prone)))
+        {
+            return Usability.NotUsableOnThisCreature($"{target.Name} is immune to the prone condition.");
+        }
+
+        var withinRange = false;
+        if (user.HasFreeHand)
+        {
+            // Check target is within user's free-hand reach
+            if (target.DistanceTo(user) <= user.UnarmedStrike.DetermineReach(user))
+            {
+                withinRange = true;
+            }
+        }
+        else
+        {
+            var items = user.HeldItems;
+            foreach (var item in items)
+            {
+                if (item.HasTrait(Trait.Trip))
+                {
+                    // Check target is within the user's trip weapon's reach
+                    if (target.DistanceTo(user) <= item.DetermineReach(user))
+                    {
+                        withinRange = true;
+                    }
+                }
+            }
+        }
+
+        if (!withinRange)
+        {
+            return Usability.NotUsableOnThisCreature($"{target.Name} is not within trip range.");
+        }
+
+        return Usability.Usable;
+    }
+
+    /// <summary>
+    /// Get whether user can attempt to use Dirty Trick on target as part of a use of Dastardly Dash.
+    /// Assumes that this is called by the Dastardly Dash CombatAction so target will be an enemy of user.
+    /// Note that no attacks have the Dirty Trick trait yet so I am only considering free hands.
+    /// </summary>
+    private static Usability CanDTAsPartOfDash(Creature user, Creature target)
+    {
+        if (!user.HasFeat(OtherFeatNames.DirtyTrick))
+        {
+            return Usability.NotUsable($"{user.Name} doesn't have the Dirty Trick skill feat.");
+        }
+
+        var withinRange = false;
+        if (user.HasFreeHand)
+        {
+            // Check target is within user's free-hand reach
+            if (target.DistanceTo(user) <= user.UnarmedStrike.DetermineReach(user))
+            {
+                withinRange = true;
+            }
+        }
+
+        if (!withinRange)
+        {
+            return Usability.NotUsableOnThisCreature($"{target.Name} is not within dirty trick range.");
+        }
+
+        return Usability.Usable;
     }
 
     /// <summary>
@@ -554,7 +783,14 @@ public class RemasteredSwashbuckler
                             list.Add(ActionId.Trip);
                             panacheGranter.Description += ", Grapple, Shove, Trip";
                         }
-                        break;                        
+                        break;
+                    case "Rascal":
+                        if(!list.Contains(Other.DirtyTrickActionId))
+                        {
+                            list.Add(Other.DirtyTrickActionId);
+                            panacheGranter.Description += ", Dirty Trick";
+                        }                     
+                        break;
                     case "Wit":
                         if(!list.Contains(ActionId.BonMot))
                         {
@@ -700,6 +936,44 @@ public class RemasteredSwashbuckler
             sheet.AddAtLevel(7,  (Action<CalculatedCharacterSheetValues>) (v7 => v7.GrantFeat(FeatName.MasterDiplomacy)));
             sheet.AddAtLevel(15, (Action<CalculatedCharacterSheetValues>) (v7 => v7.GrantFeat(FeatName.LegendaryDiplomacy)));
         });
+    }
+
+    public static void AddRascal(ClassSelectionFeat swashClassFeat)
+    {
+        swashClassFeat.Subfeats.Insert(swashClassFeat.Subfeats.Count - 1, new AddSwash.SwashbucklerStyle(
+            RemasteredSwashbucklerFeatNames.RascalStyle,
+            "You aren't afraid to use underhanded tactics to get the edge over your opponents.",
+            "You are trained in Thievery and gain the Dirty Trick general feat. When you use Dirty Trick, the action gains the bravado trait, allowing you to gain panache on any result aside from a critical failure. If the result is a failure, your panache only lasts until the end of your next turn.",
+            "When you hit with a finisher, the foe takes a -10 circumstance penalty to its speed until the start of your next turn.",
+            Skill.Thievery,
+            new ActionId[] {Other.DirtyTrickActionId})
+        .WithOnSheet(delegate(CalculatedCharacterSheetValues sheet)
+        {
+            sheet.TrainInThisOrSubstitute(Skill.Thievery);
+            sheet.GrantFeat(OtherFeatNames.DirtyTrick);
+            sheet.AddAtLevel(3,  (Action<CalculatedCharacterSheetValues>) (v7 => v7.GrantFeat(FeatName.ExpertThievery)));
+            sheet.AddAtLevel(7,  (Action<CalculatedCharacterSheetValues>) (v7 => v7.GrantFeat(FeatName.MasterThievery)));
+            sheet.AddAtLevel(15, (Action<CalculatedCharacterSheetValues>) (v7 => v7.GrantFeat(FeatName.LegendaryThievery)));
+        })
+        .WithOnCreature(delegate (Creature swash)
+        {
+            if (swash.Level >= 9)
+            {
+                swash.AddQEffect(new QEffect("Exemplary Finisher", "When you hit with a finisher, the foe takes a -10 circumstance penalty to its speed until the start of your next turn.")
+                {
+                    AfterYouTakeActionAgainstTarget = async (qf, action, target, result) =>
+                    {
+                        if (action.HasTrait(AddSwash.Finisher) && result >= CheckResult.Success)
+                        {
+                            QEffect slow = QEffect.PenaltyToSpeed(2, BonusType.Circumstance);
+                            slow.Source = swash;
+                            slow.ExpiresAt = ExpirationCondition.ExpiresAtStartOfSourcesTurn;
+                            target.AddQEffect(slow);
+                        }
+                    }
+                });
+            }
+        }));
     }
 
     /// <summary>
