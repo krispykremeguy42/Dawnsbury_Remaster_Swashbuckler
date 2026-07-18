@@ -1,6 +1,6 @@
 # Swashbuckler
 
-This mod builds upon ThricreanPhoenix's Swashbuckler mod (and requires it as a dependency). This updates the swashbuckler class to include the changes from the remastered ruleset.
+This mod builds upon ThicreanPhoenix's Swashbuckler mod (and requires it as a dependency). This updates the swashbuckler class to include the changes from the remastered ruleset.
 
 There are three known inconsistencies with the remastered rules, three of which are intentional compromises and three of which are something that I have yet to do/haven't figured out yet:
 

@@ -17,11 +17,17 @@ public class RemastereSwashbucklerLoader
     [DawnsburyDaysModMainMethod]
     public static void LoadMod()
     {
+        ModManager.AddFeat(Other.CreateDirtyTrickFeat());
+
         AllFeats.All.RemoveAll(RemasteredSwashbuckler.ShouldFeatBeRemoved);
         foreach (Feat feat in RemasteredSwashbuckler.CreateRemasteredSwashbucklerFeats())
         {
             ModManager.AddFeat(feat);
         }
         AllFeats.All.ForEach(RemasteredSwashbuckler.PatchSwashFeats);
+
+        bool _ = ModManager.TryParse("Swashbuckler", out FeatName LegacySwashbuckler);
+        ClassSelectionFeat swashClass = (ClassSelectionFeat) AllFeats.GetFeatByFeatName(LegacySwashbuckler);
+        RemasteredSwashbuckler.AddRascal(swashClass);
     }
 }
