@@ -940,7 +940,7 @@ public class RemasteredSwashbuckler
 
     public static void AddRascal(ClassSelectionFeat swashClassFeat)
     {
-        swashClassFeat.Subfeats.Insert(swashClassFeat.Subfeats.Count - 1, new AddSwash.SwashbucklerStyle(
+        Feat rascalStyle = new AddSwash.SwashbucklerStyle(
             RemasteredSwashbucklerFeatNames.RascalStyle,
             "You aren't afraid to use underhanded tactics to get the edge over your opponents.",
             "You are trained in Thievery and gain the Dirty Trick general feat. When you use Dirty Trick, the action gains the bravado trait, allowing you to gain panache on any result aside from a critical failure. If the result is a failure, your panache only lasts until the end of your next turn.",
@@ -973,7 +973,11 @@ public class RemasteredSwashbuckler
                     }
                 });
             }
-        }));
+        });
+
+        ModManager.AddFeat(rascalStyle);
+
+        swashClassFeat.Subfeats.Insert(swashClassFeat.Subfeats.Count - 1, rascalStyle);
     }
 
     /// <summary>
