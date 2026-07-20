@@ -512,58 +512,6 @@ public class RemasteredSwashbuckler
             
             // Patch One for All effect
             PatchOneForAllAid(feat);
-            
-            // Fix bug in legacy Swashbuckler dedication: add list of skill actions from each style to the Panache Granter.
-            // Since I don't plan on monitoring the legacy mod to see if it's fixed, check to see if it already has been fixed.
-            feat.WithOnCreature(delegate (Creature swash)
-            {
-                QEffect panacheGranter = swash.QEffects.First((QEffect fct) => fct.Key == "PanacheGranter");
-                List<ActionId> list = (List<ActionId>)panacheGranter.Tag;
-    
-                AddSwash.SwashbucklerStyle style = (AddSwash.SwashbucklerStyle)swash.PersistentCharacterSheet.Calculated.AllFeats.Find(feat => feat.HasTrait(AddSwash.SwashStyle));
-                switch (style.Name)
-                {
-                    case "Battledancer":
-                        if (!list.Contains(AddSwash.FascinatingPerformanceActionId))
-                        {
-                            list.Add(AddSwash.FascinatingPerformanceActionId);
-                            panacheGranter.Description += ", Fascinating Performance";
-                        }
-                        break;
-                    case "Braggart":
-                        if(!list.Contains(ActionId.Demoralize))
-                        {
-                            list.Add(ActionId.Demoralize);
-                            panacheGranter.Description += ", Demoralize";
-                        }
-                        break;                        
-                    case "Fencer":
-                        if(!list.Contains(ActionId.Feint))
-                        {
-                            list.Add(ActionId.Feint);
-                            list.Add(ActionId.CreateADiversion);
-                            panacheGranter.Description += ", Feint";
-                            panacheGranter.Description += ", Create a Diversion";
-                        }
-                        break;
-                    case "Gymnast":
-                        if(!list.Contains(ActionId.Grapple))
-                        {
-                            list.Add(ActionId.Grapple);
-                            list.Add(ActionId.Shove);
-                            list.Add(ActionId.Trip);
-                            panacheGranter.Description += ", Grapple, Shove, Trip";
-                        }
-                        break;                        
-                    case "Wit":
-                        if(!list.Contains(ActionId.BonMot))
-                        {
-                            list.Add(ActionId.BonMot);
-                            panacheGranter.Description += ", Bon Mot";
-                        }
-                        break;                        
-                }                    
-            });
         }
         
         // Patch the Opportune Riposte reaction for multiclass characters.
